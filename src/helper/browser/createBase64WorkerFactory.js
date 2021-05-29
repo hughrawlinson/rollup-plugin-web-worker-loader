@@ -22,8 +22,8 @@ function createURL(base64, sourcemapArg, enableUnicodeArg) {
 
 export function createBase64WorkerFactory(base64, sourcemapArg, enableUnicodeArg) {
     var url;
-    return function WorkerFactory(options) {
+    return async function WorkerFactory(audioContext, options) {
         url = url || createURL(base64, sourcemapArg, enableUnicodeArg);
-        return new Worker(url, options);
+        return await audioContext.audioWorklet.addModule(url, options);
     };
 }
