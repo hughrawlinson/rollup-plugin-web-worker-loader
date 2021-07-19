@@ -17,63 +17,94 @@ function resolveModule(name, paths, extensions) {
     return null;
 }
 
+function resolveTypedId(type, theMatch, state, config, importer) {
+    const name = theMatch[theMatch.length - 1];
+    if (!state.idMap.has(name)) {
+        let target = null;
+        if (importer) {
+            const folder = path.dirname(importer);
+            const paths = require.resolve.paths(importer);
+            paths.push(folder);
+            target = resolveModule(name, paths, config.extensions);
+        } else if (path.isAbsolute(name)) {
+            target = name;
+        }
+
+        if (target) {
+            const prefixed = `\0rollup-plugin-worker-loader::module:${config.forceInline ? `:${state.forceInlineCounter++}:` : ''}${target}`;
+            if (!state.idMap.has(prefixed)) {
+                const inputOptions = Object.assign({}, state.options, {
+                    input: target,
+                });
+
+                let workerName;
+                if (config.preserveFileNames) {
+                    const extension = path.extname(target);
+                    workerName = path.basename(target, extension);
+                    if (!state.outFiles.has(workerName)) {
+                        state.outFiles.set(workerName, 0);
+                    } else {
+                        const duplicateCount = state.outFiles.get(workerName);
+                        state.outFiles.set(workerName, duplicateCount + 1);
+                        workerName += duplicateCount + 1;
+                    }
+                } else {
+                    workerName = `${type}-${state.idMap.size}`;
+                }
+
+                state.idMap.set(prefixed, {
+                    workerID: `${workerName}.js`,
+                    chunk: null,
+                    inputOptions,
+                    target,
+                    type,
+                });
+            }
+
+            if (!state.exclude.has(prefixed)) {
+                return prefixed;
+            }
+            return target;
+        }
+    }
+    return null;
+}
+
 function resolveId(state, config, importee, importer) {
-    const match = importee.match(config.pattern);
     if (importee.startsWith('\0rollup-plugin-web-worker-loader::helper')) {
         if (config.forceInline) {
             return `\0${state.forceInlineCounter++}::${importee.substr(1)}`;
         }
         return importee;
-    } else if (match && match.length) {
-        const name = match[match.length - 1];
-        if (!state.idMap.has(name)) {
-            let target = null;
-            if (importer) {
-                const folder = path.dirname(importer);
-                const paths = require.resolve.paths(importer);
-                paths.push(folder);
-                target = resolveModule(name, paths, config.extensions);
-            } else if (path.isAbsolute(name)) {
-                target = name;
-            }
-
-            if (target) {
-                const prefixed = `\0rollup-plugin-worker-loader::module:${config.forceInline ? `:${state.forceInlineCounter++}:` : ''}${target}`;
-                if (!state.idMap.has(prefixed)) {
-                    const inputOptions = Object.assign({}, state.options, {
-                        input: target,
-                    });
-
-                    let workerName;
-                    if (config.preserveFileNames) {
-                        const extension = path.extname(target);
-                        workerName = path.basename(target, extension);
-                        if (!state.outFiles.has(workerName)) {
-                            state.outFiles.set(workerName, 0);
-                        } else {
-                            const duplicateCount = state.outFiles.get(workerName);
-                            state.outFiles.set(workerName, duplicateCount + 1);
-                            workerName += duplicateCount + 1;
-                        }
-                    } else {
-                        workerName = `web-worker-${state.idMap.size}`;
-                    }
-
-                    state.idMap.set(prefixed, {
-                        workerID: `${workerName}.js`,
-                        chunk: null,
-                        inputOptions,
-                        target,
-                    });
-                }
-
-                if (!state.exclude.has(prefixed)) {
-                    return prefixed;
-                }
-                return target;
-            }
-        }
     }
+
+    const {
+        webWorkerPattern,
+        audioWorkletPattern,
+        paintWorkletPattern,
+        serviceWorkerPattern,
+    } = config;
+
+    const webWorkerMatch = importee.match(webWorkerPattern);
+    if (webWorkerMatch) {
+        return resolveTypedId('web-worker', webWorkerMatch, state, config, importer);
+    }
+
+    const audioWorkletMatch = importee.match(audioWorkletPattern);
+    if (audioWorkletMatch) {
+        return resolveTypedId('audio-worklet', audioWorkletMatch, state, config, importer);
+    }
+
+    const paintWorkletMatch = importee.match(paintWorkletPattern);
+    if (paintWorkletMatch) {
+        return resolveTypedId('paint-worklet', paintWorkletMatch, state, config, importer);
+    }
+
+    const serviceWorkerMatch = importee.match(serviceWorkerPattern);
+    if (serviceWorkerMatch) {
+        return resolveTypedId('service-worker', serviceWorkerMatch, state, config, importer);
+    }
+
     return null;
 }
 

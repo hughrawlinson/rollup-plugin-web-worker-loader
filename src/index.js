@@ -12,7 +12,12 @@ const defaultConfig = {
     preserveSource: false,
     preserveFileNames: false,
     enableUnicode: false,
-    pattern: /web-worker:(.+)/,
+    // Other work[er|let]s to keep track of:
+    // CSS Houdini Animation worket & Layout worklet
+    webWorkerPattern: /web-worker:(.+)/,
+    audioWorkletPattern: /audio-worklet:(.+)/,
+    paintWorkletPattern: /paint-worklet:(.+)/,
+    serviceWorkerPattern: /service-worker:(.+)/,
     inline: true,
     forceInline: false,
     external: undefined,
